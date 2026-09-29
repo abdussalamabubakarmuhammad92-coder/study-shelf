@@ -11,7 +11,7 @@
   body {
     /* soft slate canvas: white surfaces need a deeper backdrop to read
        as layered — near-white made light mode feel over-exposed */
-    @apply bg-slate-200/60 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-slate-200 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100;
   }
 }
 
@@ -26,7 +26,7 @@
     @apply btn bg-primary-600 text-white shadow-md shadow-primary-600/20 hover:bg-primary-700 hover:shadow-lg hover:shadow-primary-600/30;
   }
   .btn-secondary {
-    @apply btn border border-gray-300 bg-white text-slate-700 hover:border-gray-400 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+    @apply btn border border-gray-300/80 bg-slate-50 text-slate-700 hover:border-gray-400 hover:bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
   }
   .input {
     @apply w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none transition focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500;

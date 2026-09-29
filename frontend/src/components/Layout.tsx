@@ -26,7 +26,7 @@ function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 w-72 transform overflow-y-auto border-r border-gray-200 bg-white transition-transform duration-300 dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
+      className={`fixed inset-y-0 left-0 z-40 w-72 transform overflow-y-auto border-r border-gray-200/70 bg-slate-50 transition-transform duration-300 dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
         open ? 'translate-x-0' : '-translate-x-full'
       }`}
     >
@@ -129,7 +129,7 @@ export function Layout() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/80">
+      <header className="sticky top-0 z-30 border-b border-gray-200/70 bg-slate-50/85 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/80">
         <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:pl-[19.5rem]">
           <button
             onClick={() => setSidebarOpen(true)}
