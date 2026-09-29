@@ -1,6 +1,6 @@
 # 🎓 StudyShelf
 
-[![CI](https://github.com/YOUR_GITHUB_USERNAME/studyshelf/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/studyshelf/actions/workflows/ci.yml)
+[![CI](https://github.com/abdussalamabubakarmuhammad92-coder/study-shelf/actions/workflows/ci.yml/badge.svg)](https://github.com/abdussalamabubakarmuhammad92-coder/study-shelf/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/backend%20tests-42%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
