@@ -9,7 +9,9 @@
     @apply antialiased;
   }
   body {
-    @apply bg-gray-50 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100;
+    /* soft slate canvas: white surfaces need a deeper backdrop to read
+       as layered — near-white made light mode feel over-exposed */
+    @apply bg-slate-200/60 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100;
   }
 }
 
