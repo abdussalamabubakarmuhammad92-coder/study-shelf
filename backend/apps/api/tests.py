@@ -402,3 +402,67 @@ class StatsTests(PortalAPITestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['total_resources'], 1)
         self.assertEqual(res.data['faculty_count'], 1)
+
+
+# =================================================================
+# Review-fix regression tests (external review, 2026-10)
+# =================================================================
+
+class UploadFormatPolicyTests(PortalAPITestCase):
+    """Explicit format policy: allowlisted extensions only, contents must
+    match the declared extension's magic bytes."""
+
+    def upload(self, name, payload):
+        f = SimpleUploadedFile(name, payload, content_type='application/octet-stream')
+        return self.alice_client.post('/api/resources/',
+                                      {'files': f, 'department': self.dept.id})
+
+    def test_disallowed_extension_rejected(self):
+        res = self.upload('archive.zip', b'PK\x03\x04 zip content')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('not accepted', str(res.data))
+
+    def test_exe_renamed_as_pdf_rejected(self):
+        res = self.upload('malware.pdf', b'MZ\x90\x00 fake executable')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('does not match', str(res.data))
+
+    def test_real_pdf_passes(self):
+        res = self.upload('notes.pdf', b'%PDF-1.7 real content')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+
+    def test_no_extension_rejected(self):
+        res = self.upload('payload', b'MZ\x90\x00')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class RegistrationAtomicityTests(PortalAPITestCase):
+    """The invite claim and account creation are one transaction: if the
+    claim fails after the user row is created, everything rolls back —
+    no account without a consumed invite, no burned invite without an
+    account (closes the concurrent-registration race)."""
+
+    def test_user_rolled_back_if_invite_claim_fails(self):
+        from unittest.mock import patch
+        invite = InviteToken.generate(created_by=self.admin)
+        payload = {'token': invite.token, 'username': 'atomic', 'full_name': 'A',
+                   'email': 'atomic@uni.edu', 'password': 'strong-pass-1'}
+
+        with patch.object(InviteToken, 'use', side_effect=RuntimeError('claim failed')):
+            with self.assertRaises(RuntimeError):
+                self.client.post('/api/auth/register/', payload)
+
+        self.assertFalse(User.objects.filter(username='atomic').exists())
+        invite.refresh_from_db()
+        self.assertFalse(invite.is_used)  # invite NOT burned by the rolled-back attempt
+
+    def test_double_registration_with_same_token_still_rejected(self):
+        invite = InviteToken.generate(created_by=self.admin)
+        base = {'token': invite.token, 'full_name': 'F', 'password': 'strong-pass-1'}
+        first = self.client.post('/api/auth/register/', {
+            **base, 'username': 'first', 'email': 'first@uni.edu'})
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        second = self.client.post('/api/auth/register/', {
+            **base, 'username': 'second', 'email': 'second@uni.edu'})
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(User.objects.filter(email__in=['first@uni.edu', 'second@uni.edu']).count(), 1)

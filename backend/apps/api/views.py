@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum
 from django.http import FileResponse
 from rest_framework import generics, status, viewsets
@@ -167,6 +168,17 @@ def resource_rate(request, pk):
 # ---------------------------------------------------------------- auth
 
 class RegisterView(APIView):
+    """Invite-based registration with an atomic invite claim.
+
+    Review finding: the original flow checked invite validity, created the
+    user and marked the invite used as separate operations — two concurrent
+    registrations could both pass the check. The claim now happens inside a
+    single transaction with the invite row locked (SELECT ... FOR UPDATE),
+    and validity is re-checked under that lock. On SQLite (dev) the lock is
+    a no-op but the transaction still serializes writers; on PostgreSQL
+    (production) it is a true row lock.
+    """
+
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -174,6 +186,7 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        # cheap pre-checks outside the lock, purely for friendlier errors
         invite = InviteToken.objects.filter(token=data['token']).first()
         if not invite or not invite.is_valid():
             return Response({'detail': 'This invite link is invalid, expired, or already used.'},
@@ -185,15 +198,32 @@ class RegisterView(APIView):
             return Response({'detail': 'An account with that email already exists.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.create_user(
-            username=data['username'],
-            email=data['email'],
-            password=data['password'],
-            full_name=data['full_name'],
-            role='contributor',
-            department=data.get('department'),
-        )
-        invite.use(user)
+        try:
+            with transaction.atomic():
+                # claim the invite under a row lock; validity re-checked inside
+                invite = InviteToken.objects.select_for_update().get(pk=invite.pk)
+                if not invite.is_valid():
+                    return Response({'detail': 'This invite link is invalid, expired, or already used.'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if User.objects.filter(username__iexact=data['username']).exists():
+                    return Response({'detail': 'That username is already taken.'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if User.objects.filter(email__iexact=data['email']).exists():
+                    return Response({'detail': 'An account with that email already exists.'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+
+                user = User.objects.create_user(
+                    username=data['username'],
+                    email=data['email'],
+                    password=data['password'],
+                    full_name=data['full_name'],
+                    role='contributor',
+                    department=data.get('department'),
+                )
+                invite.use(user)
+        except IntegrityError:
+            return Response({'detail': 'That username or email is already taken.'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)

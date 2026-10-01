@@ -67,7 +67,30 @@ class ResourceEditSerializer(serializers.ModelSerializer):
 
 
 class ResourceUploadSerializer(serializers.Serializer):
-    """Accepts one or more files plus shared metadata for a batch upload."""
+    """Accepts one or more files plus shared metadata for a batch upload.
+
+    Explicit format policy (review finding): only known academic-document and
+    image extensions are accepted — unknown extensions are rejected outright
+    rather than silently stored as 'other' — and file *contents* must match
+    the declared extension's magic bytes, so a renamed executable cannot
+    masquerade as course material. Files are served with
+    Content-Disposition: attachment and X-Frame-Options: SAMEORIGIN.
+    """
+
+    ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'ppt', 'pptx', 'txt',
+                          'jpg', 'jpeg', 'png', 'gif', 'webp'}
+    MAGIC_BYTES = {
+        'pdf': [b'%PDF-'],
+        'png': [b'\x89PNG\r\n\x1a\n'],
+        'jpg': [b'\xff\xd8\xff'],
+        'jpeg': [b'\xff\xd8\xff'],
+        'gif': [b'GIF87a', b'GIF89a'],
+        'webp': [b'RIFF'],
+        'docx': [b'PK\x03\x04'],
+        'doc': [b'\xd0\xcf\x11\xe0'],
+        'pptx': [b'PK\x03\x04'],
+        'ppt': [b'\xd0\xcf\x11\xe0'],
+    }
 
     department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all())
     course_code = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
@@ -79,6 +102,19 @@ class ResourceUploadSerializer(serializers.Serializer):
         for f in files:
             if f.size > max_size:
                 raise serializers.ValidationError(f'"{f.name}" exceeds the 50MB limit.')
+            ext = f.name.rsplit('.', 1)[-1].lower() if '.' in f.name else ''
+            if ext not in self.ALLOWED_EXTENSIONS:
+                raise serializers.ValidationError(
+                    f'"{f.name}" has a "{ext or "unknown"}" extension, which is not '
+                    'accepted. Allowed formats: PDF, DOC(X), PPT(X), TXT, JPG, PNG, GIF, WEBP.')
+            signatures = self.MAGIC_BYTES.get(ext)
+            if signatures:
+                head = f.read(16)
+                f.seek(0)
+                if not any(head.startswith(sig) for sig in signatures):
+                    raise serializers.ValidationError(
+                        f'"{f.name}" content does not match its .{ext} extension — '
+                        'upload refused.')
         return files
 
 
